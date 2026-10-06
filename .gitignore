@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.work/
+.validation/
+config/local.json
+config/secrets.env
+.env
+*.sqlite3*
+*.db
+*.log
+*.wav
+*.mp3
+*.m4a
+runtime/
+backups/
+reports/

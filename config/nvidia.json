@@ -1,0 +1,5 @@
+{
+  "description": "Conservative NVIDIA profile. ASR image and driver support must be verified for your GPU.",
+  "asr": {"DEVICE":"cuda", "COMPUTE_TYPE":"float16", "BATCH_SIZE":"1", "GPU_CONCURRENCY":"1"},
+  "ollama": {}
+}

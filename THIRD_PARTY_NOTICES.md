@@ -1,0 +1,11 @@
+# Источники и лицензии
+
+Этот deployment repository распространяется по GNU Affero General Public License v3.0 (см. LICENSE). Сохраняйте эту лицензию и attribution при распространении производных версий.
+
+- Bridge/publication/provenance/recovery Python modules и Windows controls перенесены из recovery package fork [Kibnet/speakr](https://github.com/Kibnet/speakr). В этом репозитории они параметризованы и дополнены first-install orchestration. Новые deployment scripts также AGPL-3.0.
+- [Speakr](https://github.com/murtaza-nasir/speakr), его авторы и contributors: AGPL-3.0. Build source — fork `https://github.com/Kibnet/speakr.git`, commit `73ba1f9b0cc4e4c3a8088ebfa1aae474b44aaf83`. Источник скачивается явно при build. Dockerfile корректируется для долговременного FFmpeg source и local runtime policy; основной processing API не патчится. Upstream LICENSE сохраняется в exported build tree и image.
+- [FFmpeg](https://ffmpeg.org/): версия и SHA-256 в `config/dependencies.json`. Используемый рецепт включает `--enable-gpl` и libmp3lame. Исходники FFmpeg и Debian libmp3lame доступны при сборке; перед самостоятельным распространением бинарных образов выполните требования применимых лицензий о доступности соответствующих исходников и notices. Исходники проекта — не распространение заранее собранных бинарников.
+- [WhisperX ASR service](https://github.com/murtaza-nasir/whisperx-asr-service): отдельный public container dependency. Лицензия сервиса и его third-party notices находятся в его исходниках. Образ и digest закреплены в `config/dependencies.json`; он не включён в Git этого проекта.
+- [Ollama](https://github.com/ollama/ollama): отдельный prerequisite, Apache-2.0. В Git не включены его binary/model cache.
+- Qwen base model и Hugging Face ASR/diarization models: внешние model artifacts; их лицензии и gated access условия проверяет пользователь перед скачиванием. Digest закрепляет модель, но не заменяет её лицензию. Model weights/tokens не включены в Git.
+- Python, Debian, Tailwind и Python/vendor dependencies Speakr сохраняют собственные лицензии/notices. Deployment build сохраняет upstream sources, vendored assets и исходные notices. Публикация binary image/release требует отдельного составления notices для его фактического содержимого.

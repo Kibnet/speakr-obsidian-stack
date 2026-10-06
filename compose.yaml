@@ -1,0 +1,50 @@
+# Generated runtime copy uses its own .env and data directories.
+name: ${STACK_PROJECT:?Run prepare first}
+services:
+  app:
+    image: ${APP_IMAGE:?Build first}
+    container_name: ${STACK_PROJECT}-app
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${APP_PORT}:8899"
+    env_file: .env
+    volumes:
+      - ./uploads:/data/uploads
+      - ./instance:/data/instance
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+  whisperx-asr:
+    image: ${ASR_IMAGE:?Run prepare first}
+    container_name: ${STACK_PROJECT}-asr
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${ASR_PORT}:9000"
+    env_file: hf-token.env
+    environment:
+      DEVICE: cuda
+      COMPUTE_TYPE: float16
+      BATCH_SIZE: ${ASR_BATCH_SIZE}
+      GPU_CONCURRENCY: "1"
+      CACHE_DIR: /.cache
+      HF_HOME: /.cache
+      NLTK_DATA: /.cache/nltk_data
+      PRELOAD_MODEL: large-v3
+      MAX_FILE_SIZE_MB: "1000"
+      MODEL_KEEP_ALIVE_SECONDS: "900"
+      SERVE_MODE: simple
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      DO_NOT_TRACK: "1"
+    shm_size: 2g
+    volumes:
+      - ./asr-models:/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - {driver: nvidia, count: 1, capabilities: [gpu]}
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}

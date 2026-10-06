@@ -1,0 +1,5 @@
+{
+  "description": "Optional reference settings for RTX 5070 Ti; measure on your GPU",
+  "asr": {"DEVICE":"cuda", "COMPUTE_TYPE":"float16", "BATCH_SIZE":"4", "GPU_CONCURRENCY":"1"},
+  "ollama": {"OLLAMA_FLASH_ATTENTION":"1", "OLLAMA_KV_CACHE_TYPE":"q8_0", "OLLAMA_GPU_OVERHEAD":"6442450944", "OLLAMA_LLM_LIBRARY":"cuda_v13", "OLLAMA_VULKAN":"false", "CUDA_VISIBLE_DEVICES":"0"}
+}

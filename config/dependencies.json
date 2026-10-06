@@ -1,0 +1,20 @@
+{
+  "speakr": {
+    "repository": "https://github.com/Kibnet/speakr.git",
+    "commit": "73ba1f9b0cc4e4c3a8088ebfa1aae474b44aaf83"
+  },
+  "asr": {
+    "image": "learnedmachine/whisperx-asr-service:0.4.1-blackwell@sha256:a523ca157cfec5db6813d88c171a955ac99bb0313706796d15684bbe6dc1ec8e"
+  },
+  "model": {
+    "name": "qwen3.5:9b",
+    "digest": "sha256:56671c2ab9385f9cfcb404638e32cd62d88e3501d44822208363c010179a3c90",
+    "manifest_url": "https://registry.ollama.ai/v2/library/qwen3.5/manifests/9b"
+  },
+  "ffmpeg": {
+    "version": "8.1.3",
+    "url": "https://ffmpeg.org/releases/ffmpeg-8.1.3.tar.xz",
+    "sha256": "7138d28c96d9d3e3af4ee3d8cad72741f8ffb40da90c1112235dea3ecd3178a3"
+  },
+  "python_image": "python:3.11-slim@sha256:0dd364ba7e10242f07755449e3a3d0e35f9efd987952737b90def6709ab0c5ce"
+}
