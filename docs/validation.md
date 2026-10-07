@@ -14,6 +14,7 @@
 | Running task definition update, retained server PID, Resume и adopted Upgrade | PASS на синтетическом сервере |
 | PowerShell 5: listener present/confirmed-empty/query-error, native stderr | PASS |
 | Process drain: transient CIM retry, active writer, persistent unknown | PASS; неизвестное состояние не разрешает менять DB/code |
+| Native обычная установка: collision, partial/crash rollback, повторный Resume, Upgrade, disabled flags, queue/config drift и logon/minute triggers | PASS; отдельный чистый root и задачи, рабочая установка не изменялась |
 
 В проверочном Windows-сеансе cold scheduled PowerShell startup иногда задерживался до первой строки launcher; причина не установлена. Для проверки перехода уже работающего сервера использован диагностический `tests/validate-adoption.ps1 -BootstrapServer`: синтетический сервер запускается собственной задачей, её definition возвращается к старому launcher при работающем экземпляре, затем проверяются adoption/rollback/Resume/Upgrade и сохранение PID. Эта проверка не подтверждает cold scheduled PowerShell startup, вход в Windows или физическую перезагрузку. Launcher отдельно выполнен в PowerShell 5 с настоящим синтетическим executable и stderr.
 
