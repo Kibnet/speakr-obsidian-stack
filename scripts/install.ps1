@@ -14,7 +14,11 @@ $installPath = Join-Path $root 'install-state.json'
 $cfgPath = Join-Path $root 'config.json'
 $cfg = Get-Content -Raw -Encoding UTF8 -LiteralPath $cfgPath | ConvertFrom-Json
 $Python = (Get-Command $Python -ErrorAction Stop).Source
-& $Python (Join-Path $PSScriptRoot 'runtime_guard.py') $target | Out-Null
+$preManifest = Get-Content -Raw -Encoding UTF8 -LiteralPath $stackManifestPath | ConvertFrom-Json
+if ($preManifest.mode -eq 'adopted') {
+    if ($Action -ne 'Upgrade') { throw 'Adopted runtime: use scripts/adopt.ps1 Rollback; fresh Install/Rollback refused' }
+    & $Python (Join-Path $PSScriptRoot 'adoption.py') verify --root $root | Out-Null
+} else { & $Python (Join-Path $PSScriptRoot 'runtime_guard.py') $target | Out-Null }
 if ($LASTEXITCODE -ne 0) { throw 'Canonical runtime guard failed' }
 if (!$Candidate -and $InjectFailure -ne 'None') { throw 'Failure injection is candidate-only' }
 if ($target -eq [IO.Path]::GetPathRoot($target).TrimEnd('\')) { throw 'Drive root refused' }
@@ -68,6 +72,11 @@ function Set-DockerAutostart([string]$Path,[bool]$Value,[bool]$Expected) {
     } finally { if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp } }
 }
 function Own-Check($Manifest) {
+    if ($Manifest.mode -eq 'adopted') {
+        foreach ($entry in $Manifest.external_files.PSObject.Properties) {
+            if (!(Test-Path -LiteralPath $entry.Name) -or (Get-FileHash -LiteralPath $entry.Name).Hash.ToLowerInvariant() -ne $entry.Value) { throw 'Adopted external input drift' }
+        }
+    }
     foreach ($entry in $Manifest.files.PSObject.Properties) {
         $path = Join-Path $target $entry.Name
         if (!(Test-Path -LiteralPath $path) -or (Get-FileHash -LiteralPath $path).Hash.ToLowerInvariant() -ne $entry.Value) {
@@ -172,7 +181,7 @@ function Rollback($state,[bool]$Partial) {
     @{status='rolled_back';queueRestored=$false;ownTasksRemoved=$true} | ConvertTo-Json
 }
 $sm = Get-Content -Raw -Encoding UTF8 -LiteralPath $stackManifestPath | ConvertFrom-Json
-if ($sm.phase -ne 'installed' -or !$sm.files.'stack\.env' -or !$sm.files.'stack\compose.yaml' -or !$sm.files.'automation\config.json') { throw 'Preparation incomplete; normal controls refused' }
+if ($sm.phase -ne 'installed' -or !$sm.files.'automation\config.json' -or ($sm.mode -ne 'adopted' -and (!$sm.files.'stack\.env' -or !$sm.files.'stack\compose.yaml'))) { throw 'Preparation incomplete; normal controls refused' }
 if ([IO.Path]::GetFullPath($sm.target_root).TrimEnd('\') -ne $target) { throw 'Stack ownership mismatch' }
 if ($Action -eq 'Rollback') {
     # Config may be in the exact journaled planned state before stack manifest read-back.

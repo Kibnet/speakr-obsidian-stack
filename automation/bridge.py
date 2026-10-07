@@ -20,6 +20,7 @@ import uuid
 
 from common import (ROOT, CREATE_NO_WINDOW, atomic_json, config, enqueue, enqueue_control,
                     media_paths, path_key, run, sha256, signature, start_worker, maintenance_paused)
+from common import migration_guard, recovery_held
 from backfill import candidates, preview
 from publication import choose_path, is_our_complete_file, render, version_hash, write_new
 from provenance import is_acr, snapshot, speakr_notes, verified_snapshot
@@ -65,6 +66,7 @@ def short_error(exc):
 
 class Bridge:
     def __init__(self, cfg, root=ROOT, api=None, clock=time.time):
+        migration_guard(root)
         if cfg.get('legacy_recovery_jobs'):
             raise ValueError('Legacy backlog configuration is unsupported; preserve the old runtime and use a fresh deployment')
         self.cfg, self.root, self.clock = cfg, Path(root), clock
@@ -164,6 +166,9 @@ class Bridge:
         """Explicit migration only. Existing Speakr metadata is never updated."""
         planned = candidates(self.db, self.cfg, self.capture_verified_source)
         for item in planned:
+            job = self.db.execute('SELECT * FROM jobs WHERE id=?', (item['job_id'],)).fetchone()
+            if recovery_held(self.db, job):
+                continue
             for source in item['sources']:
                 self.add_source_snapshot(item['job_id'], source)
             self.db.commit()
@@ -363,6 +368,8 @@ class Bridge:
                 row = self.db.execute('SELECT * FROM jobs WHERE id=?', (jid,)).fetchone()
                 if not row:
                     raise ValueError('Unknown job id')
+                if recovery_held(self.db, row):
+                    raise ValueError('Historical recovery hold; explicit identity reconciliation required')
                 if data['action'] == 'retry':
                     if row['state'] not in ('failed', 'reconciliation_required', 'submitting'):
                         # A replay after a crash may already have advanced this job.
@@ -400,6 +407,8 @@ class Bridge:
         self.db.commit()
 
     def reconcile(self, row):
+        if recovery_held(self.db, row):
+            return
         found = self.api.find(Path(row['stage']).name)
         if found:
             self.db.execute("UPDATE jobs SET state='accepted',recording_id=?,error=NULL,next_try=0 WHERE id=?",
@@ -420,11 +429,11 @@ class Bridge:
                                    (self.clock(),)).fetchall():
             self.reconcile(row)
         # Only one remote active job at once, including jobs submitted outside this bridge.
-        pending = self.db.execute("SELECT 1 FROM jobs WHERE state IN ('accepted','submitting') LIMIT 1").fetchone()
+        pending = any(not recovery_held(self.db, job) for job in self.db.execute("SELECT * FROM jobs WHERE state IN ('accepted','submitting')"))
         if pending:
             return
-        row = self.db.execute("SELECT * FROM jobs WHERE state IN ('ready','retry') AND next_try<=? ORDER BY rowid LIMIT 1",
-                              (self.clock(),)).fetchone()
+        row = next((job for job in self.db.execute("SELECT * FROM jobs WHERE state IN ('ready','retry') AND next_try<=? ORDER BY rowid",
+                               (self.clock(),)) if not recovery_held(self.db, job)), None)
         if not row:
             return
         sources = self.source_rows(row['id'])
@@ -471,7 +480,7 @@ class Bridge:
             raise
 
     def publish(self, row, detail, transcript):
-        if maintenance_paused(self.root):
+        if maintenance_paused(self.root) or recovery_held(self.db, row):
             return False
         job = dict(row)
         sources = self.source_rows(row['id'])
@@ -524,6 +533,8 @@ class Bridge:
         rows = self.db.execute("SELECT * FROM jobs WHERE recording_id IS NOT NULL AND state IN ('accepted','completed','failed','summary_pending') AND next_try<=?",
                                (self.clock(),)).fetchall()
         for row in rows:
+            if recovery_held(self.db, row):
+                continue
             if row['state'] in ('completed', 'failed') and self.clock() - row['last_poll'] < self.cfg.get('completed_poll_seconds', 300):
                 continue
             try:

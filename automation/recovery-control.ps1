@@ -1,5 +1,7 @@
 ﻿param([ValidateSet('Pause','Resume','Status')][string]$Action = 'Status', [string]$Root = $PSScriptRoot)
 $ErrorActionPreference = 'Stop'
+$migration=Join-Path $Root 'adoption-state.json'
+if ((Test-Path -LiteralPath $migration) -and (Get-Content -Raw -Encoding UTF8 -LiteralPath $migration | ConvertFrom-Json).phase -ne 'installed') { throw 'Partial adoption; control refused' }
 $cfg = Get-Content -Encoding UTF8 -LiteralPath (Join-Path $Root 'config.json') -Raw | ConvertFrom-Json
 if ($Action -eq 'Status') {
     foreach ($file in @('status.json','watchdog-status.json','maintenance.json')) {

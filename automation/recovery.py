@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 import urllib.error
 
-from common import maintenance_paused
+from common import maintenance_paused, recovery_held
 from publication import version_hash
 
 TRANSIENT = ('connection error', 'connection refused', 'timed out', 'timeout')
@@ -44,7 +44,7 @@ class Recovery:
 
     def process(self, row, detail):
         b, jid = self.b, row['id']
-        if maintenance_paused(b.root):
+        if maintenance_paused(b.root) or recovery_held(b.db, row):
             return
         expected = Path(row['stage'] or '').name
         if not expected or detail.get('original_filename') != expected:

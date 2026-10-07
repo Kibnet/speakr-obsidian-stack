@@ -69,4 +69,46 @@ python scripts/stack.py rollback --config C:\LocalConfig\my-speakr\stack.json
 
 Up сохраняет план собственных имён, image IDs, labels, bind mounts и портов **до** создания контейнеров. Если Compose остановился на середине, устраните причину и выполните `python scripts/stack.py start --config C:\LocalConfig\my-speakr\stack.json`. Start сверяет весь план до изменений, запускает остановленные собственные контейнеры и создаёт только отсутствующие. Image/config/container drift требует разбора, а не принятия чужой установки. Состояние `ready` фиксируется после успешной проверки доступа из app к Ollama. Повторный Start сохраняет bytes установленной конфигурации; изменение runtime identities требует явной миграции.
 
-Исторические `ApproveBacklog`/`backlog-approved.json` больше не являются интерфейсом этой основы. Непустой `legacy_recovery_jobs` в старой конфигурации блокирует инициализацию recovery. Сохраните прежний runtime и разверните новый; удаление этого поля ради автоматического запуска старого архива не является миграцией.
+Исторические `ApproveBacklog`/`backlog-approved.json` не являются интерфейсом нового runtime. Непустой `legacy_recovery_jobs` блокирует обычный запуск; переход выполняется явно по процедуре ниже. Удаление этого поля вручную не переносит прежние запреты.
+
+## Переход со старой установки
+
+Adoption переводит старую работающую автоматизацию на те же модули, что находятся в этом репозитории. Очередь, staging, источники, vault и записи остаются на месте; образы Speakr/ASR и модели не обновляются. Поддерживается известный старый layout `TARGET\automation` и отдельный launcher `TARGET\llm\start-ollama.ps1`. Неизвестные action, principal, executable-модули, схема очереди или launcher требуют разбора: инструмент откажется принимать их автоматически.
+
+Выполняйте команды из проверенного checkout, под тем же пользователем Windows, который владеет задачами. Сначала проверьте переход на приватной синтетической копии старого кода:
+
+```powershell
+powershell.exe -NoProfile -File tests/validate-adoption.ps1 -LegacyRoot C:\LocalTranscription\automation -Port 19385
+```
+
+Fixture копирует только executable-модули старой установки и launcher; пользовательские аудио, очередь, токены и заметки не копируются. Создаёт отдельные уникально названные задачи и синтетический сервер без GPU, проверяет crash/rollback, исторические запреты, PowerShell 5 stderr, изменение definition работающей задачи Ollama и последующий Upgrade. Сохранённые fixture/plan могут содержать личные пути — не коммитьте их.
+
+```powershell
+powershell.exe -NoProfile -File scripts/adopt.ps1 -Action Inspect -Root C:\LocalTranscription\automation -Plan C:\LocalConfig\adoption-plan.json
+powershell.exe -NoProfile -File scripts/adopt.ps1 -Action Apply -Root C:\LocalTranscription\automation -Plan C:\LocalConfig\adoption-plan.json
+powershell.exe -NoProfile -File scripts/adopt.ps1 -Action Verify -Root C:\LocalTranscription\automation -Plan C:\LocalConfig\adoption-plan.json
+```
+
+Inspect не изменяет установку. Приватный plan содержит байты старого config/code и task XML: храните вне публичного Git, с правами того же пользователя. Apply проверяет drift, включает maintenance, временно отключает Bridge/Watchdog triggers, блокирует новые старые запуски и ждёт штатного завершения загруженных процессов. Через 45 секунд занятость означает отказ без принудительного завершения. Задача и сервер Ollama продолжают работать; definition меняется для будущего запуска без рестарта. Настройки источников, ACR timestamps, числа собеседников и Ollama tuning сохраняются.
+
+Не запускайте ручные команды установки параллельно с Apply. `--config` с альтернативными конфигами, прямые Python imports и сторонние entrypoints во время перехода не поддерживаются. Обнаруженный сторонний writer блокирует переход. До замены code создаются резервные копии в `automation\backups\adoption-*`; SQLite backup проверяется через integrity_check. `adoption-state.json` хранит фазу и ожидаемые изменения. Отсутствующий config во время перехода — предусмотренный устойчивый к crash барьер: не создавайте его вручную из backup.
+
+Неразрешённые исторические job ID переносятся в `recovery_holds`. Запрет действует также через другие jobs с тем же remote recording ID. Такие записи требуют отдельной сверки идентичности; retry/re-export/backfill не снимают запрет. Переход не разрешает новую обработку старого архива, не восстанавливает удалённые заметки и не откатывает существующие таблицы очереди.
+
+Успешный Apply оставляет maintenance pause. Если установка была активна до перехода, запустите проверяемый Resume:
+
+```powershell
+powershell.exe -NoProfile -File C:\LocalTranscription\automation\recovery-control.ps1 -Action Resume
+```
+
+Если установка прежде была paused или tasks были disabled, сохраните этот выбор; Apply сохраняет исходные Enabled flags. Resume сверяет code/config/task ownership и не запускает disabled задачи. Проверьте свежий heartbeat, health и совпадение файлов активного runtime с checkout. `install-state.json.commit` — commit пакета adoption; полный manifest хешей определяет фактически установленный код. После Upgrade ориентируйтесь на обновлённые file hashes; версия сервисов проверяется отдельно. Повторный Apply того же пакета только проверяет установленную версию; другой пакет обновляется штатным `scripts/install.ps1 -Action Upgrade -TargetRoot TARGET`.
+
+При прерывании сохраняйте паузу и используйте тот же проверенный пакет:
+
+```powershell
+powershell.exe -NoProfile -File scripts/adopt.ps1 -Action Rollback -Root C:\LocalTranscription\automation -Plan C:\LocalConfig\adoption-plan.json
+```
+
+Rollback до изменений сверяет принадлежащие переходу code/config/tasks и логические данные. Восстанавливает прежние модули, config и task XML, удаляет только собственные migration holds/новые модули. SQLite и заметки не восстанавливаются из старого backup. Если данные изменились после Resume или есть чужой drift, автоматический rollback отказывает: нужен отдельный reconciliation, без потери новых записей. После успешного rollback запуск старого Bridge выполняется явно; Ollama не перезапускается. Старые `automation\install.ps1` и `start.ps1` после adoption заменены публичными совместимыми entrypoints: старый installer отказывает, start вызывает проверяемый Resume.
+
+Сохранённые triggers и native task/launcher fixture подтверждают конфигурацию автозапуска. Реальная перезагрузка ПК — отдельная проверка; её нельзя считать выполненной по одному успешному Resume.

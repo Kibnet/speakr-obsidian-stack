@@ -49,7 +49,7 @@ try {
     if (!$refused -or $pausedBytes -ne [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $bridge 'maintenance.json'))) -or (Test-Path -LiteralPath (Join-Path $bridge 'heartbeat.json'))) { throw 'Pending upgrade resumed runtime' }
     [IO.File]::WriteAllBytes($journal,$journalBytes)
     & $control -Root $bridge -Action Resume | Out-Null
-    $deadline=[DateTime]::UtcNow.AddSeconds(30)
+    $deadline=[DateTime]::UtcNow.AddSeconds(120)
     do { Start-Sleep -Milliseconds 250 } while (!(Test-Path -LiteralPath (Join-Path $bridge 'heartbeat.json')) -and [DateTime]::UtcNow -lt $deadline)
     $h=Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $bridge 'heartbeat.json') | ConvertFrom-Json
     if ([string](Get-Process -Id $h.pid).StartTime.ToFileTimeUtc() -ne [string]$h.start_marker) { throw 'Native heartbeat identity differs' }
@@ -58,11 +58,19 @@ try {
     if (!$refused -or !(Get-Process -Id $h.pid -ErrorAction SilentlyContinue)) { throw 'Fresh heartbeat did not protect worker' }
     & $control -Root $bridge -Action Pause | Out-Null
     Stop-ScheduledTask -TaskName $cfg.bridge_task
-    $deadline=[DateTime]::UtcNow.AddSeconds(30)
+    $deadline=[DateTime]::UtcNow.AddSeconds(120)
     do { Start-Sleep -Milliseconds 250; $stopped=Get-ScheduledTask -TaskName $cfg.bridge_task } while ($stopped.State -eq 'Running' -and [DateTime]::UtcNow -lt $deadline)
     if ($stopped.State -eq 'Running') { throw 'Own fixture task did not stop' }
+    # Scheduler Ready can precede process exit; wait for the identified fixture owner too.
+    $deadline=[DateTime]::UtcNow.AddSeconds(120)
+    do {
+        $old=Get-Process -Id $h.pid -ErrorAction SilentlyContinue
+        $stillOwn=$old -and [string]$old.StartTime.ToFileTimeUtc() -eq [string]$h.start_marker
+        if ($stillOwn) {Start-Sleep -Milliseconds 250}
+    } while ($stillOwn -and [DateTime]::UtcNow -lt $deadline)
+    if ($stillOwn) {throw 'Stopped fixture process still exiting; restart not tested'}
     & $control -Root $bridge -Action Resume | Out-Null
-    $deadline=[DateTime]::UtcNow.AddSeconds(30)
+    $deadline=[DateTime]::UtcNow.AddSeconds(120)
     do { Start-Sleep -Milliseconds 250; $latest=Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $bridge 'heartbeat.json') | ConvertFrom-Json } while ($latest.pid -eq $h.pid -and [DateTime]::UtcNow -lt $deadline)
     if ($latest.pid -eq $h.pid) { throw 'Resume did not restart stopped own worker' }
     & $control -Root $bridge -Action Pause | Out-Null

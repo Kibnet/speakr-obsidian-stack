@@ -1,5 +1,24 @@
 # Проверки и их границы
 
+## Adoption существующей автоматизации — 7 октября 2026 года
+
+Переход проверен отдельно от новой установки и обновления образов:
+
+| Проверка | Результат |
+| --- | --- |
+| Python bridge/recovery/watchdog/deployment/adoption regressions | 124 tests PASS, Python 3.14 |
+| Исторические holds, remote-ID aliases, новое аудио после held job | PASS; запрет не обходится и не блокирует следующую разрешённую запись |
+| Atomic DDL/inserts, metadata bytes, missing/drifted manifests, holds и внешние inputs | PASS |
+| Native Task Scheduler: 8 Apply crash boundaries | PASS в нескольких прогонах; очередь, config и заметки сохранены |
+| Native обрыв самого Rollback после pause и после восстановления tasks | PASS; повторный Rollback завершает переход |
+| Running task definition update, retained server PID, Resume и adopted Upgrade | PASS на синтетическом сервере |
+| PowerShell 5: listener present/confirmed-empty/query-error, native stderr | PASS |
+| Process drain: transient CIM retry, active writer, persistent unknown | PASS; неизвестное состояние не разрешает менять DB/code |
+
+В проверочном Windows-сеансе cold scheduled PowerShell startup иногда задерживался до первой строки launcher; причина не установлена. Для проверки перехода уже работающего сервера использован диагностический `tests/validate-adoption.ps1 -BootstrapServer`: синтетический сервер запускается собственной задачей, её definition возвращается к старому launcher при работающем экземпляре, затем проверяются adoption/rollback/Resume/Upgrade и сохранение PID. Эта проверка не подтверждает cold scheduled PowerShell startup, вход в Windows или физическую перезагрузку. Launcher отдельно выполнен в PowerShell 5 с настоящим синтетическим executable и stderr.
+
+Обычный режим `tests/validate-adoption.ps1` проверяет запуск старого launcher через Task Scheduler; `-Boundaries` позволяет повторять выбранные crash checkpoints. Диагностический bootstrap не следует считать заменой проверки автозапуска конкретной машины. Реальная перезагрузка, новая пользовательская запись и phone sync остаются отдельными шагами приёмки.
+
 Проверено 6 октября 2026 года на Windows. Репозиторий является основой развёртывания; результат синтетических проверок не заменяет приёмку вашей установки.
 
 | Проверка | Фактический результат |

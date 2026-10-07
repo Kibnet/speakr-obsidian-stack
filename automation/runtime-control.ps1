@@ -8,6 +8,8 @@
     [string]$StartMarker
 )
 $ErrorActionPreference = 'Stop'
+$migration=Join-Path $Root 'adoption-state.json'
+if ((Test-Path -LiteralPath $migration) -and (Get-Content -Raw -Encoding UTF8 -LiteralPath $migration | ConvertFrom-Json).phase -ne 'installed') { throw 'Partial adoption; runtime control refused' }
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 $cfg = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $Root 'config.json') | ConvertFrom-Json
 function Read-Task([string]$Name) {
@@ -49,6 +51,17 @@ $name = if ($Component -eq 'bridge') {$BridgeTask} else {$OllamaTask}
 $t = Read-Task $name
 if (!$t.enabled -or !$t.trusted) { throw 'Task disabled, absent, or definition differs' }
 if ($Action -eq 'Start') {
+    if ($Component -eq 'ollama') {
+        $listeners=@(Get-NetTCPConnection -State Listen -ErrorAction Stop | Where-Object LocalPort -eq $cfg.llm_port)
+        if ($listeners) {
+            foreach ($listener in $listeners) {
+                $owner=Get-Process -Id $listener.OwningProcess -ErrorAction Stop
+                if ($owner.Path -ne $cfg.ollama -or $listener.LocalAddress -ne '127.0.0.1') { throw 'Ollama endpoint owned by a different process' }
+            }
+            '{"status":"existing_owned_server"}'
+            exit 0
+        }
+    }
     if ($t.state -eq 'Ready') { Start-ScheduledTask -TaskName $name }
 } elseif ($Action -eq 'StopVerified') {
     if ($Component -ne 'bridge' -or !(Verified-Process $ProcessId $StartMarker)) { throw 'Process identity differs' }

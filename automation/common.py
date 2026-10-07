@@ -12,6 +12,28 @@ import time
 import uuid
 
 ROOT = Path(__file__).resolve().parent
+
+def migration_guard(root=ROOT):
+    """Run before configuration reads or any runtime constructor writes."""
+    path = Path(root) / 'adoption-state.json'
+    if path.exists():
+        state = json.loads(path.read_text(encoding='utf-8-sig'))
+        if state.get('phase') != 'installed':
+            raise RuntimeError('Interrupted adoption; use adopt Rollback before starting runtime')
+        import sqlite3
+        db=sqlite3.connect((Path(root)/'state.sqlite3').resolve().as_uri()+'?mode=ro',uri=True)
+        try:
+            actual=sorted(db.execute('SELECT job_id,recording_id,migration_id FROM recovery_holds').fetchall())
+            expected=sorted(tuple(x) for x in state['expected_holds'])
+            if actual!=expected:
+                raise RuntimeError('Historical recovery holds drift; runtime remains stopped')
+        finally: db.close()
+
+def recovery_held(db, job):
+    if not db.execute("SELECT 1 FROM sqlite_master WHERE name='recovery_holds' AND type='table'").fetchone():
+        return False
+    return bool(db.execute('SELECT 1 FROM recovery_holds WHERE job_id=? OR (recording_id IS NOT NULL AND recording_id=?)',
+                           (job['id'], job['recording_id'])).fetchone())
 def model_key(name):
     return name if ':' in name.rsplit('/',1)[-1] else name+':latest'
 MEDIA = {'.m4a', '.mp3', '.wav', '.flac', '.ogg', '.opus', '.aac', '.wma',
@@ -30,6 +52,7 @@ def maintenance_paused(root=ROOT):
 
 
 def config(path=None):
+    migration_guard(Path(path).parent if path else ROOT)
     return json.loads(Path(path or ROOT / 'config.json').read_text(encoding='utf-8-sig'))
 
 
