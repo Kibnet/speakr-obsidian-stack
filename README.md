@@ -102,13 +102,15 @@ python tests/combined.py
 
 Native tests создают уникальные временные задачи/каталоги; integration использует настоящий собранный Speakr, синтетические ASR/LLM и собственные контейнеры без GPU. Integration и combined запускайте после build. Combined проходит от пустого runtime через прерванный Up, восстановление новым процессом и обычный native Install до заметки, а также проверяет повторный Start после установки. Полное тестирование и ограничения: [docs/validation.md](docs/validation.md).
 
-## Публикация своей копии
+## Исходный репозиторий и публикация своей копии
+
+Исходники: [Kibnet/speakr-obsidian-stack](https://github.com/Kibnet/speakr-obsidian-stack), основная ветка `main`.
 
 Перед публикацией проверьте `git status`, tracked files и отсутствие secrets/runtime. Создайте пустой репозиторий в своём GitHub аккаунте и выполните самостоятельно:
 
 ```powershell
 git remote add origin https://github.com/YOUR_ACCOUNT/speakr-obsidian-stack.git
-git push -u origin feat/local-transcription-stack
+git push -u origin HEAD:main
 ```
 
 Не добавляйте `.work`, `.validation`, runtime, аудио, vault или токены. Лицензия — AGPL-3.0; источники и компоненты: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

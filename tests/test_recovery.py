@@ -69,6 +69,17 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual(self.rows()[0]['state'], 'identity_mismatch')
         self.assertEqual(self.posts, [])
 
+    def test_legacy_config_refused_before_filesystem_or_database_access(self):
+        for enabled in (False, True):
+            cfg = dict(self.cfg, legacy_recovery_jobs=['legacy-id'], recovery_enabled=enabled)
+            target = self.root / ('unsupported-' + str(enabled))
+            with patch('bridge.sqlite3.connect') as connect, patch('bridge.SpeakrAPI') as api:
+                with self.assertRaisesRegex(ValueError, 'Legacy backlog'):
+                    fixtures.Bridge(cfg, target)
+                connect.assert_not_called()
+                api.assert_not_called()
+                self.assertFalse(target.exists())
+
     def test_incomplete_asr_or_unknown_failure_is_not_exported(self):
         row = self.uploaded('CUDA out of memory')
         count = len(self.notes())
@@ -216,15 +227,20 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual(rec['summary_status'], 'manual_required')
         self.assertTrue(self.bridge.status()['attention_required'])
 
-    def test_legacy_backlog_stays_frozen_until_explicit_job_approval(self):
+    def test_removed_legacy_config_is_refused_without_unfreezing_backlog(self):
         row = self.uploaded()
         self.cfg['legacy_recovery_jobs'] = [row['id']]
         count = len(self.notes())
-        self.bridge.poll()
-        self.assertEqual(len(self.notes()), count)
+        before = [tuple(r) for r in self.bridge.db.execute('SELECT * FROM recovery_jobs')]
+        from recovery import Recovery
+        with self.assertRaisesRegex(ValueError, 'Legacy backlog'):
+            Recovery(self.bridge)
         (self.root / 'backlog-approved.json').write_text(json.dumps({'job_ids': [row['id']]}))
-        self.bridge.poll()
-        self.assertEqual(len(self.notes()), count + 1)
+        with self.assertRaisesRegex(ValueError, 'Legacy backlog'):
+            Recovery(self.bridge)
+        self.assertEqual(len(self.notes()), count)
+        self.assertEqual([tuple(r) for r in self.bridge.db.execute('SELECT * FROM recovery_jobs')], before)
+        self.assertEqual(self.posts, [])
 
     def test_backoff_retry_limit_persists_after_restart(self):
         self.uploaded()

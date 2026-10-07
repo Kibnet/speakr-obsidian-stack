@@ -35,7 +35,7 @@ try {
     & $install -TargetRoot $target -Candidate -Python $Python -Action Rollback | Out-Null
     if (Test-Path -LiteralPath (Join-Path $bridge 'bridge.py')) { throw 'Crash recovery left code' }
     & $install -TargetRoot $target -Candidate -Python $Python | Out-Null
-    & $Python (Join-Path $bridge 'baseline.py') --root $bridge --verify-fixture
+    & $Python (Join-Path $PSScriptRoot 'verify_baseline.py') --root $bridge
     if ($LASTEXITCODE -ne 0) { throw 'Old source was not baselined without jobs' }
     # An interrupted upgrade must not clear maintenance or launch any task.
     $journal=Join-Path $bridge 'install-state.json'

@@ -25,4 +25,8 @@ Native tests используют actual Task Scheduler и временные ro
 
 App policy ограничивает Python DNS/socket destinations и очищает proxy environment. Это прикладная защита локального processing, а не общая сетевая sandbox для всех контейнеров: downloads ASR/model setup и другие процессы требуют отдельной сетевой политики при необходимости.
 
-Подробные logs, temporary roots и fixture transcripts сохраняются локально в ignored `.validation/` и временных каталогах; в Git входят тесты и этот итог. Публикация на GitHub, live deployment и испытание перезагрузкой не выполнялись.
+Подробные logs, temporary roots и fixture transcripts сохраняются локально в ignored `.validation/` и временных каталогах; в Git входят тесты и этот итог. Эти проверки не включали live deployment и испытание реальной перезагрузкой.
+
+## Проверка cleanup 7 октября 2026 года
+
+После переноса fixture assertions в tests и удаления исторических CLI controls: 106 Python tests PASS, PowerShell parsing PASS, native install/collision/crash/upgrade/Resume/rollback PASS. Непустая старая legacy-конфигурация отказывается до filesystem/SQLite/API действий при обоих значениях recovery_enabled. Candidate и reachable Git history проверены на private paths/secrets. Полный ASR/LLM integration после этого cleanup повторно не запускался; его evidence выше относится к проверке 6 октября.

@@ -53,7 +53,7 @@ def main():
     cfg={'speakr_url':f'http://127.0.0.1:{appport}','env_file':str(envpath),'sources':[str(base/'audio')],
          'vault_root':str(base/'vault'),'vault':str(base/'vault/notes'),'scan_seconds':1,'stable_seconds':0,
          'completed_poll_seconds':0,'max_audio_bytes':990000000,'ffprobe':'ffprobe.exe','ffmpeg':'ffmpeg.exe',
-         'auto_start_docker':False,'recovery_enabled':True,'llm_ready':True,'legacy_recovery_jobs':[]}
+         'auto_start_docker':False,'recovery_enabled':True,'llm_ready':True}
     bridge=None
     try:
         docker('network','create',network)

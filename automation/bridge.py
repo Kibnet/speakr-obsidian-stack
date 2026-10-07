@@ -65,6 +65,8 @@ def short_error(exc):
 
 class Bridge:
     def __init__(self, cfg, root=ROOT, api=None, clock=time.time):
+        if cfg.get('legacy_recovery_jobs'):
+            raise ValueError('Legacy backlog configuration is unsupported; preserve the old runtime and use a fresh deployment')
         self.cfg, self.root, self.clock = cfg, Path(root), clock
         self.root.mkdir(parents=True, exist_ok=True)
         for name in ('staging', 'requests', 'reports', 'logs', 'controls'):
@@ -522,8 +524,6 @@ class Bridge:
         rows = self.db.execute("SELECT * FROM jobs WHERE recording_id IS NOT NULL AND state IN ('accepted','completed','failed','summary_pending') AND next_try<=?",
                                (self.clock(),)).fetchall()
         for row in rows:
-            if self.recovery and self.recovery.frozen(row['id']):
-                continue
             if row['state'] in ('completed', 'failed') and self.clock() - row['last_poll'] < self.cfg.get('completed_poll_seconds', 300):
                 continue
             try:

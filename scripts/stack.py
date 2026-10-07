@@ -164,7 +164,7 @@ def prepare(cfg, config_path, secret_path):
         ollama_task=cfg['project']+' Ollama',watchdog_task=cfg['project']+' Watchdog',
         llm_url=f"http://127.0.0.1:{cfg['llm_port']}",llm_model=cfg['llm_model'],
         speakr_health_url=f"http://127.0.0.1:{cfg['app_port']}/login",asr_health_url=f"http://127.0.0.1:{cfg['asr_port']}/health",
-        recovery_enabled=True,legacy_recovery_jobs=[],auto_start_docker=cfg.get('auto_start_docker',False),
+        recovery_enabled=True,auto_start_docker=cfg.get('auto_start_docker',False),
         managed_ollama=cfg['managed_ollama'],ollama_launcher=str(bridge/'start-ollama.ps1'),
         container_names=[cfg['project']+'-app',cfg['project']+'-asr'],
         ollama=cfg['ollama'],ollama_models=cfg['ollama_models'],llm_port=cfg['llm_port'],

@@ -26,6 +26,8 @@ def summary_state(detail):
 
 class Recovery:
     def __init__(self, bridge):
+        if bridge.cfg.get('legacy_recovery_jobs'):
+            raise ValueError('Legacy backlog configuration is unsupported; preserve the old runtime and use a fresh deployment')
         self.b = bridge
         bridge.db.execute('''CREATE TABLE IF NOT EXISTS recovery_jobs(
           job_id TEXT PRIMARY KEY,transcript_status TEXT,summary_status TEXT,
@@ -35,13 +37,6 @@ class Recovery:
         bridge.db.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('recovery_schema_version','1')")
         bridge.db.commit()
 
-    def frozen(self, jid):
-        if jid not in self.b.cfg.get('legacy_recovery_jobs', []):
-            return False
-        from watchdog import read_json
-        approved = read_json(self.b.root / 'backlog-approved.json', {}).get('job_ids', [])
-        return jid not in approved
-
     def update(self, jid, **fields):
         names = ','.join(k + '=?' for k in fields)
         self.b.db.execute(f'UPDATE recovery_jobs SET {names} WHERE job_id=?', (*fields.values(), jid))
@@ -50,8 +45,6 @@ class Recovery:
     def process(self, row, detail):
         b, jid = self.b, row['id']
         if maintenance_paused(b.root):
-            return
-        if self.frozen(jid):
             return
         expected = Path(row['stage'] or '').name
         if not expected or detail.get('original_filename') != expected:
