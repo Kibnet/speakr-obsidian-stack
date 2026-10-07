@@ -3,6 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 import hashlib
+import subprocess
 from unittest.mock import patch
 from types import SimpleNamespace
 
@@ -86,6 +87,22 @@ class WatchdogTests(unittest.TestCase):
             Watchdog({}, self.root, self.runtime, self.clock).tick()
             self.clock.advance(121)
         self.assertEqual(len(self.runtime.calls), 3)
+
+    def test_slow_or_running_docker_never_relaunches_gui(self):
+        for ready, present in ((None, True), (None, False), (False, True), (False, None)):
+            self.runtime.data.update(docker_ready=ready, docker_process_present=present)
+            for _ in range(4):
+                self.heartbeat()
+                result = self.watch.tick()
+                self.clock.advance(121)
+                self.assertIn('docker', result['problems'])
+            self.assertEqual(self.runtime.calls, [])
+
+    def test_confirmed_absent_docker_still_recovers_once(self):
+        self.runtime.data.update(docker_ready=False, docker_process_present=False)
+        self.watch.tick()
+        self.watch.tick()
+        self.assertEqual(self.runtime.calls, [('docker', 'Start')])
     def test_expired_dead_heartbeat_first_graceful_then_verified_stop(self):
         self.heartbeat(updated=0, deadline=self.clock() - 120)
         self.watch.tick()
@@ -143,6 +160,41 @@ class ContainerSafetyTests(unittest.TestCase):
             self.assertIn('--no-recreate', args)
             self.assertIn('--no-deps', args)
             self.assertNotIn('whisperx-asr', args)
+
+
+class DockerProbeTests(unittest.TestCase):
+    def test_engine_timeout_is_unknown_even_when_gui_is_absent(self):
+        runtime = WindowsRuntime({'docker': 'docker', 'speakr_health_url': 's', 'asr_health_url': 'a', 'llm_url': 'l'}, Path('.'))
+        with patch.object(runtime, 'command', return_value={}), patch('watchdog.probe_http', return_value={'ready': True}), patch('watchdog.probe_llm', return_value={'ready': True}), patch.object(runtime, 'docker_process_present', return_value=False), patch('watchdog.subprocess.run', side_effect=subprocess.TimeoutExpired('docker', 3)):
+            self.assertIsNone(runtime.observe()['docker_ready'])
+
+    def test_presence_query_failure_is_unknown(self):
+        runtime = WindowsRuntime({}, Path('.'))
+        for result in (SimpleNamespace(returncode=1, stdout=b'False', stderr=b''), SimpleNamespace(returncode=0, stdout=b'invalid', stderr=b''), SimpleNamespace(returncode=0, stdout=b'False', stderr=b'query failed')):
+            with patch('watchdog.subprocess.run', return_value=result):
+                self.assertIsNone(runtime.docker_process_present())
+        with patch('watchdog.subprocess.run', side_effect=subprocess.TimeoutExpired('powershell', 10)):
+            self.assertIsNone(runtime.docker_process_present())
+
+    def test_successful_presence_reply_is_parsed(self):
+        runtime = WindowsRuntime({}, Path('.'))
+        for value, expected in ((b'True\r\n', True), (b'False\r\n', False)):
+            with patch('watchdog.subprocess.run', return_value=SimpleNamespace(returncode=0, stdout=value, stderr=b'')):
+                self.assertIs(runtime.docker_process_present(), expected)
+
+    def test_race_or_unknown_presence_blocks_actual_launch(self):
+        runtime = WindowsRuntime({'docker_desktop': 'Docker Desktop.exe'}, Path('.'))
+        for present in (True, None):
+            with patch.object(runtime, 'docker_process_present', return_value=present), patch('watchdog.subprocess.Popen') as spawn:
+                with self.assertRaisesRegex(RuntimeError, 'launch refused'):
+                    runtime.action('docker', 'Start')
+                spawn.assert_not_called()
+
+    def test_confirmed_absent_process_can_be_started(self):
+        runtime = WindowsRuntime({'docker_desktop': 'Docker Desktop.exe'}, Path('.'))
+        with patch.object(runtime, 'docker_process_present', return_value=False), patch('watchdog.subprocess.Popen') as spawn:
+            runtime.action('docker', 'Start')
+            self.assertEqual(spawn.call_args.args[0], ['Docker Desktop.exe'])
 
 
 if __name__ == '__main__': unittest.main()

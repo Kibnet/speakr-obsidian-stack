@@ -30,3 +30,7 @@ App policy ограничивает Python DNS/socket destinations и очища
 ## Проверка cleanup 7 октября 2026 года
 
 После переноса fixture assertions в tests и удаления исторических CLI controls: 106 Python tests PASS, PowerShell parsing PASS, native install/collision/crash/upgrade/Resume/rollback PASS. Непустая старая legacy-конфигурация отказывается до filesystem/SQLite/API действий при обоих значениях recovery_enabled. Candidate и reachable Git history проверены на private paths/secrets. Полный ASR/LLM integration после этого cleanup повторно не запускался; его evidence выше относится к проверке 6 октября.
+
+## Проверка повторного запуска Docker 7 октября 2026 года
+
+113 Python tests PASS: timeout/OSError engine probe, присутствующий процесс, неизвестный/ошибочный process query, повторная проверка перед launch и запуск при подтверждённом отсутствии. Реальный запрос процессов Windows + искусственный таймаут engine на изолированном watchdog: 0 новых GUI spawns. Неизвестное состояние отражается как degraded health. Проверка физической перезагрузки и длительное наблюдение за интерфейсом Docker в эту проверку не входили.

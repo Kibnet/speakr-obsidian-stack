@@ -12,7 +12,7 @@ python scripts/stack.py start --config C:\LocalConfig\my-speakr\stack.json
 
 Pause останавливает новые действия bridge/watchdog; активная операция может завершиться. Resume не включает задачи, которые пользователь выключил в Scheduler, и не снимает отдельную discovery pause. Start проверяет собственные container identities и запускает остановленные контейнеры. Watchdog использует login/minute triggers, один recovery action за проход, cooldown и ограничение попыток. Он не перезапускает работающий GPU-сервис ради health error и не подменяет image.
 
-`auto_start_docker` по умолчанию false. Watchdog может запустить проверенный Docker Desktop после входа пользователя. Опциональный true включает Docker AutoStart/StartupApproved с журналом intent/applied; неизвестная startup definition или drift блокируют изменение. Чужие настройки Docker сохраняются. Это не доказательство прохождения реальной перезагрузки.
+`auto_start_docker` по умолчанию false. Watchdog может запустить проверенный Docker Desktop после входа пользователя. Опциональный true включает Docker AutoStart/StartupApproved с журналом intent/applied; неизвестная startup definition или drift блокируют изменение. Чужие настройки Docker сохраняются. Это не доказательство прохождения реальной перезагрузки. Таймаут docker info означает неизвестное состояние и не запускает GUI. При ошибке engine watchdog запускает Docker Desktop только после успешной проверки отсутствия процессов Docker Desktop и backend; непосредственно перед запуском проверяет их повторно. Ошибка проверки процессов блокирует запуск. Уже работающий Docker не перезапускается ради health error.
 
 ## Очередь, ручной retry и старые файлы
 

@@ -42,13 +42,32 @@ class WindowsRuntime:
                                capture_output=True, timeout=3, creationflags=CREATE_NO_WINDOW)
             runtime['docker_ready'] = p.returncode == 0
         except subprocess.TimeoutExpired:
-            runtime['docker_ready'] = False
+            runtime['docker_ready'] = None
+        except OSError:
+            runtime['docker_ready'] = None
+        runtime['docker_process_present'] = self.docker_process_present() if runtime['docker_ready'] is not True else None
         return runtime
+
+    def docker_process_present(self):
+        # A running frontend/backend must never be relaunched for a slow engine.
+        environment = {k: v for k, v in os.environ.items() if k.lower() != 'psmodulepath'}
+        try:
+            result = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command',
+                "$ErrorActionPreference='Stop'; try { @(Get-Process -ErrorAction Stop | Where-Object { $_.ProcessName -in @('Docker Desktop','com.docker.backend') }).Count -gt 0 } catch { [Console]::Error.WriteLine('Process query failed'); exit 1 }"],
+                capture_output=True, timeout=10, creationflags=CREATE_NO_WINDOW, env=environment)
+            value = result.stdout.decode('utf-8-sig').strip().lower()
+            if result.returncode == 0 and not result.stderr and value in ('true', 'false'):
+                return value == 'true'
+        except (OSError, subprocess.TimeoutExpired, UnicodeError):
+            pass
+        return None  # Unknown process state never authorizes a GUI launch.
 
     def action(self, component, verb, heartbeat=None):
         if self.cfg.get('supervision_candidate') and component in ('docker', 'containers'):
             raise RuntimeError('Candidate cannot control Docker or live containers')
         if component == 'docker':
+            if self.docker_process_present() is not False:
+                raise RuntimeError('Docker Desktop/backend already running or presence unknown; launch refused')
             subprocess.Popen([self.cfg['docker_desktop']], creationflags=CREATE_NO_WINDOW,
                              stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         elif component == 'containers':
@@ -148,8 +167,9 @@ class Watchdog:
             problems.append('bridge')
         if fresh and heartbeat.get('deadline') and now > heartbeat['deadline'] + 60:
             problems.append('bridge_operation_overdue')
-        if not observed['docker_ready']:
-            if self.act('docker'):
+        if observed['docker_ready'] is not True:
+            problems.append('docker')
+            if observed['docker_ready'] is False and observed.get('docker_process_present') is False and self.act('docker'):
                 actions.append('docker:start')
         elif observed.get('containers_absent', False):
             if self.act('containers'):
