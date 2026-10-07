@@ -58,3 +58,5 @@ App policy ограничивает Python DNS/socket destinations и очища
 ## Фоновый ввод Watchdog — 7 октября 2026 года
 
 125 Python tests PASS. Hidden PowerShell probes явно получают stdin=DEVNULL: фоновые задачи pythonw не требуют консольного ввода. Native read-only Inspect из собственной задачи с principal/settings рабочего Watchdog прошёл за 13,85 с: задачи trusted/Running, Bridge process_matches=true. Это отдельная проверка Inspect; полный scheduled watchdog pass, cold login и перезагрузка ею не подтверждаются.
+
+Последующий рабочий Watchdog ещё получал таймауты при нагрузке: одного закрытого stdin оказалось недостаточно. Диагностические subprocess теперь используют обычный приоритет, Inspect ограничен 45 с; Docker health запрашивает server version с пределом 10 с и требует непустого ответа. При ошибке/таймауте состояние по-прежнему неизвестно и не разрешает запуск Docker. 126 Python tests PASS; полный read-only observe из отдельной scheduled pythonw-задачи с тем же principal/settings и пониженным приоритетом прошёл за 24,65 с, все endpoints и Docker ready=true. Это не проверка перезагрузки и не доказательство единственной причины прежних задержек.

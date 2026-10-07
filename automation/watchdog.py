@@ -10,6 +10,9 @@ from bridge import WorkerLock
 from common import CREATE_NO_WINDOW, ROOT, atomic_json, config, maintenance_paused, powershell_env
 from health import probe_http, probe_llm
 
+# Diagnostics must not inherit Task Scheduler's low background priority.
+PROBE_FLAGS = CREATE_NO_WINDOW | getattr(subprocess, 'NORMAL_PRIORITY_CLASS', 0)
+
 
 def read_json(path, default=None):
     try:
@@ -28,8 +31,8 @@ class WindowsRuntime:
                 '-BridgeTask', self.cfg['bridge_task'], '-OllamaTask', self.cfg['ollama_task']]
         for key, value in params.items():
             args += ['-' + key, str(value)]
-        p = subprocess.run(args, capture_output=True, timeout=20 if action == 'Inspect' else 10,
-                           creationflags=CREATE_NO_WINDOW, check=True, env=powershell_env(), stdin=subprocess.DEVNULL)
+        p = subprocess.run(args, capture_output=True, timeout=45 if action == 'Inspect' else 10,
+                           creationflags=PROBE_FLAGS, check=True, env=powershell_env(), stdin=subprocess.DEVNULL)
         return json.loads(p.stdout.decode('utf-8-sig')) if p.stdout.strip() else {}
 
     def observe(self):
@@ -38,9 +41,9 @@ class WindowsRuntime:
         runtime['asr'] = probe_http(self.cfg['asr_health_url'])
         runtime['ollama'] = probe_llm(self.cfg)
         try:
-            p = subprocess.run([self.cfg['docker'], 'info', '--format', '{{.ServerVersion}}'],
-                               capture_output=True, timeout=3, creationflags=CREATE_NO_WINDOW)
-            runtime['docker_ready'] = p.returncode == 0
+            p = subprocess.run([self.cfg['docker'], 'version', '--format', '{{.Server.Version}}'],
+                               capture_output=True, timeout=10, creationflags=PROBE_FLAGS, stdin=subprocess.DEVNULL)
+            runtime['docker_ready'] = p.returncode == 0 and bool(p.stdout.strip())
         except subprocess.TimeoutExpired:
             runtime['docker_ready'] = None
         except OSError:
@@ -54,7 +57,7 @@ class WindowsRuntime:
         try:
             result = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command',
                 "$ErrorActionPreference='Stop'; try { @(Get-Process -ErrorAction Stop | Where-Object { $_.ProcessName -in @('Docker Desktop','com.docker.backend') }).Count -gt 0 } catch { [Console]::Error.WriteLine('Process query failed'); exit 1 }"],
-                capture_output=True, timeout=10, creationflags=CREATE_NO_WINDOW, env=environment, stdin=subprocess.DEVNULL)
+                capture_output=True, timeout=10, creationflags=PROBE_FLAGS, env=environment, stdin=subprocess.DEVNULL)
             value = result.stdout.decode('utf-8-sig').strip().lower()
             if result.returncode == 0 and not result.stderr and value in ('true', 'false'):
                 return value == 'true'

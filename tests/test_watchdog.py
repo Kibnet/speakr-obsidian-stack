@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 from test_bridge import Clock
 from common import atomic_json
-from watchdog import Watchdog, WindowsRuntime
+from watchdog import Watchdog, WindowsRuntime, PROBE_FLAGS
 
 
 class Runtime:
@@ -168,9 +168,22 @@ class DockerProbeTests(unittest.TestCase):
         with patch('watchdog.subprocess.run',return_value=SimpleNamespace(stdout=b'{}')) as call:
             runtime.command('Inspect')
             self.assertEqual(call.call_args.kwargs['stdin'],subprocess.DEVNULL)
+            self.assertEqual(call.call_args.kwargs['creationflags'], PROBE_FLAGS)
+            self.assertEqual(call.call_args.kwargs['timeout'], 45)
         with patch('watchdog.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout=b'True',stderr=b'')) as call:
             self.assertTrue(runtime.docker_process_present())
             self.assertEqual(call.call_args.kwargs['stdin'],subprocess.DEVNULL)
+            self.assertEqual(call.call_args.kwargs['creationflags'], PROBE_FLAGS)
+
+    def test_engine_probe_requires_nonempty_server_reply(self):
+        runtime = WindowsRuntime({'docker': 'docker', 'speakr_health_url': 's', 'asr_health_url': 'a', 'llm_url': 'l'}, Path('.'))
+        for reply, expected in ((b'29.8.1', True), (b'', False)):
+            with patch.object(runtime, 'command', return_value={}), patch('watchdog.probe_http', return_value={'ready': True}), patch('watchdog.probe_llm', return_value={'ready': True}), patch.object(runtime, 'docker_process_present', return_value=True), patch('watchdog.subprocess.run', return_value=SimpleNamespace(returncode=0, stdout=reply)) as call:
+                self.assertIs(runtime.observe()['docker_ready'], expected)
+                self.assertEqual(call.call_args.args[0], ['docker', 'version', '--format', '{{.Server.Version}}'])
+                self.assertEqual(call.call_args.kwargs['timeout'], 10)
+                self.assertEqual(call.call_args.kwargs['creationflags'], PROBE_FLAGS)
+                self.assertEqual(call.call_args.kwargs['stdin'], subprocess.DEVNULL)
 
     def test_engine_timeout_is_unknown_even_when_gui_is_absent(self):
         runtime = WindowsRuntime({'docker': 'docker', 'speakr_health_url': 's', 'asr_health_url': 'a', 'llm_url': 'l'}, Path('.'))
