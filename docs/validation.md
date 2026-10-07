@@ -54,3 +54,7 @@ App policy ограничивает Python DNS/socket destinations и очища
 ## Проверка повторного запуска Docker 7 октября 2026 года
 
 113 Python tests PASS: timeout/OSError engine probe, присутствующий процесс, неизвестный/ошибочный process query, повторная проверка перед launch и запуск при подтверждённом отсутствии. Реальный запрос процессов Windows + искусственный таймаут engine на изолированном watchdog: 0 новых GUI spawns. Неизвестное состояние отражается как degraded health. Проверка физической перезагрузки и длительное наблюдение за интерфейсом Docker в эту проверку не входили.
+
+## Фоновый ввод Watchdog — 7 октября 2026 года
+
+125 Python tests PASS. Hidden PowerShell probes явно получают stdin=DEVNULL: фоновые задачи pythonw не требуют консольного ввода. Native read-only Inspect из собственной задачи с principal/settings рабочего Watchdog прошёл за 13,85 с: задачи trusted/Running, Bridge process_matches=true. Это отдельная проверка Inspect; полный scheduled watchdog pass, cold login и перезагрузка ею не подтверждаются.

@@ -163,6 +163,15 @@ class ContainerSafetyTests(unittest.TestCase):
 
 
 class DockerProbeTests(unittest.TestCase):
+    def test_background_powershell_probes_receive_closed_standard_input(self):
+        runtime=WindowsRuntime({'bridge_task':'bridge','ollama_task':'ollama'},Path('.'))
+        with patch('watchdog.subprocess.run',return_value=SimpleNamespace(stdout=b'{}')) as call:
+            runtime.command('Inspect')
+            self.assertEqual(call.call_args.kwargs['stdin'],subprocess.DEVNULL)
+        with patch('watchdog.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout=b'True',stderr=b'')) as call:
+            self.assertTrue(runtime.docker_process_present())
+            self.assertEqual(call.call_args.kwargs['stdin'],subprocess.DEVNULL)
+
     def test_engine_timeout_is_unknown_even_when_gui_is_absent(self):
         runtime = WindowsRuntime({'docker': 'docker', 'speakr_health_url': 's', 'asr_health_url': 'a', 'llm_url': 'l'}, Path('.'))
         with patch.object(runtime, 'command', return_value={}), patch('watchdog.probe_http', return_value={'ready': True}), patch('watchdog.probe_llm', return_value={'ready': True}), patch.object(runtime, 'docker_process_present', return_value=False), patch('watchdog.subprocess.run', side_effect=subprocess.TimeoutExpired('docker', 3)):

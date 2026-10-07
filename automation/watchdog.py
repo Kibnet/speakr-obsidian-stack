@@ -29,7 +29,7 @@ class WindowsRuntime:
         for key, value in params.items():
             args += ['-' + key, str(value)]
         p = subprocess.run(args, capture_output=True, timeout=20 if action == 'Inspect' else 10,
-                           creationflags=CREATE_NO_WINDOW, check=True, env=powershell_env())
+                           creationflags=CREATE_NO_WINDOW, check=True, env=powershell_env(), stdin=subprocess.DEVNULL)
         return json.loads(p.stdout.decode('utf-8-sig')) if p.stdout.strip() else {}
 
     def observe(self):
@@ -54,7 +54,7 @@ class WindowsRuntime:
         try:
             result = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command',
                 "$ErrorActionPreference='Stop'; try { @(Get-Process -ErrorAction Stop | Where-Object { $_.ProcessName -in @('Docker Desktop','com.docker.backend') }).Count -gt 0 } catch { [Console]::Error.WriteLine('Process query failed'); exit 1 }"],
-                capture_output=True, timeout=10, creationflags=CREATE_NO_WINDOW, env=environment)
+                capture_output=True, timeout=10, creationflags=CREATE_NO_WINDOW, env=environment, stdin=subprocess.DEVNULL)
             value = result.stdout.decode('utf-8-sig').strip().lower()
             if result.returncode == 0 and not result.stderr and value in ('true', 'false'):
                 return value == 'true'
